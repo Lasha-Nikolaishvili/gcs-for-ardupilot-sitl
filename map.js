@@ -1,4 +1,4 @@
-var map = L.map('map').setView([37.7749, -122.4194], 13);
+var map = L.map('map').setView([41.79071700571516, 44.7580536055492], 13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
 // Waypoints
@@ -54,8 +54,6 @@ function numberedIcon(number, color) {
         iconAnchor: [16, 42]
     });
 }
-
-
 
 // Add Waypoint
 function addWaypoint(lat, lng) {
