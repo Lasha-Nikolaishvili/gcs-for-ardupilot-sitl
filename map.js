@@ -137,3 +137,28 @@ function getGeofence() {
 function getRallyPoints() {
     return rallyPoints;
 }
+
+// Setters
+
+function setWaypoints(newWaypoints) {
+    // wipe out old
+    clearWaypoints();
+    // add each one (we ignore alt on the map, but you could store it if you like)
+    newWaypoints.forEach(([lat, lng]) => {
+        addWaypoint(lat, lng);
+    });
+}
+
+function setGeofence(newGeofence) {
+    clearGeofence();
+    newGeofence.forEach(([lat, lng]) => {
+        addGeofencePoint(lat, lng);
+    });
+}
+
+function setRally(newRally) {
+    clearRallyPoints();
+    newRally.forEach(([lat, lng]) => {
+        addRallyPoint(lat, lng);
+    });
+}

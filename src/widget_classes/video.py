@@ -1,8 +1,7 @@
 import sys
 import os
-import cv2
+import cv2, json
 import threading
-from src.utils.mavlink import mavlink_listener
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QSizePolicy
 ) 
@@ -11,9 +10,9 @@ from PyQt5.QtGui import QImage, QPixmap, QPainter, QFont, QColor
 
 
 class VideoFeedTab(QWidget):
-    def __init__(self):
+    def __init__(self, conn):
         super().__init__()
-
+        self.conn = conn
         self.video_label = QLabel("Waiting for video stream...")
         self.video_label.setAlignment(Qt.AlignCenter)
         self.video_label.setStyleSheet("background-color: black; color: white;")
@@ -33,21 +32,6 @@ class VideoFeedTab(QWidget):
         self.cap = None
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_frame)
-
-        # Telemetry state and lock
-        self.telemetry = {
-            'mode': 'UNKNOWN',
-            'alt': 0,
-            'lat': 0.0,
-            'lon': 0.0,
-            'heading': 0,
-            'wp_seq': 0,
-            'wp_total': 0
-        }
-        self.telemetry_lock = QMutex()
-
-        self.telemetry_thread = threading.Thread(target=mavlink_listener, daemon=True)
-        self.telemetry_thread.start()
 
     def init_video_stream(self):
         pipeline = (
@@ -93,25 +77,25 @@ class VideoFeedTab(QWidget):
         painter.setFont(QFont("Arial", 14))
         painter.setPen(QColor("lime"))
 
-        self.telemetry_lock.lock()
-        hud_text = [
-            f"Mode: {self.telemetry['mode']}",
-            f"Alt: {self.telemetry['alt']:.1f} m",
-            f"Lat: {self.telemetry['lat']:.6f}",
-            f"Lon: {self.telemetry['lon']:.6f}",
-            f"Heading: {self.telemetry['heading']}°",
-            f"Mission WP: {self.telemetry['wp_seq']} / {self.telemetry['wp_total']}"
+        tel = self.conn.telemetry
+        hud_lines = [
+            f"Mode:    {tel.get('mode','—')}",
+            f"Alt:     {tel.get('alt',0):.1f} m",
+            f"Lat:     {tel.get('lat',0):.6f}",
+            f"Lon:     {tel.get('lon',0):.6f}",
+            f"Hdg: {tel.get('heading',0)}°",
+            f"WP: {tel.get('current_mission_point',0)} / {tel.get('total_mission_points',0)}"
         ]
-        self.telemetry_lock.unlock()
 
         y = 20
-        for line in hud_text:
+        for line in hud_lines:
             painter.drawText(10, y, line)
             y += 22
 
         painter.end()
 
         self.video_label.setPixmap(QPixmap.fromImage(qimg).scaled(
-            self.video_label.width(), self.video_label.height(),
+            # self.video_label.width(), self.video_label.height(),
+            self.video_label.size(),
             Qt.KeepAspectRatio, Qt.SmoothTransformation
         ))
