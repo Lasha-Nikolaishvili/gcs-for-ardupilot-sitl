@@ -20,13 +20,30 @@ class VideoFeedTab(QWidget):
         self.video_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.video_label.setMinimumSize(320, 240)
 
+        self.arm_btn = QPushButton("Arm")
+        self.arm_btn.clicked.connect(self.conn.arm)
+
+        self.disarm_btn = QPushButton("Disarm")
+        self.disarm_btn.clicked.connect(self.conn.disarm)
+        
         self.mode_auto_btn = QPushButton("Set Mode: AUTO")
-        self.mode_manual_btn = QPushButton("Set Mode: MANUAL")
+        self.mode_auto_btn.clicked.connect(lambda: self.conn.set_mode('AUTO'))
+        
+        self.mode_guided_btn = QPushButton("Set Mode: GUIDED")
+        self.mode_guided_btn.clicked.connect(lambda: self.conn.set_mode('GUIDED'))
+        
+        self.mode_stabilize_btn = QPushButton("Set Mode: STABILIZE")
+        self.mode_stabilize_btn.clicked.connect(lambda: self.conn.set_mode('STABILIZE'))
+        # self.mode_manual_btn = QPushButton("Set Mode: MANUAL")
 
         layout = QVBoxLayout()
         layout.addWidget(self.video_label, stretch=1)
+        layout.addWidget(self.arm_btn)
+        layout.addWidget(self.disarm_btn)
         layout.addWidget(self.mode_auto_btn)
-        layout.addWidget(self.mode_manual_btn)
+        layout.addWidget(self.mode_guided_btn)
+        layout.addWidget(self.mode_stabilize_btn)
+        # layout.addWidget(self.mode_manual_btn)
         self.setLayout(layout)
 
         self.cap = None
@@ -74,28 +91,34 @@ class VideoFeedTab(QWidget):
         # Draw HUD overlay
         painter = QPainter()
         painter.begin(qimg)
-        painter.setFont(QFont("Arial", 14))
-        painter.setPen(QColor("lime"))
+        try:
+            painter.setFont(QFont("Arial", 14))
+            painter.setPen(QColor("lime"))
 
-        tel = self.conn.telemetry
-        hud_lines = [
-            f"Mode:    {tel.get('mode','—')}",
-            f"Alt:     {tel.get('alt',0):.1f} m",
-            f"Lat:     {tel.get('lat',0):.6f}",
-            f"Lon:     {tel.get('lon',0):.6f}",
-            f"Hdg: {tel.get('heading',0)}°",
-            f"WP: {tel.get('current_mission_point',0)} / {tel.get('total_mission_points',0)}"
-        ]
+            tel = self.conn.telemetry
+            hud_lines = [
+                f"Mode:    {tel.get('mode','—')}",
+                f"Armed:    {tel.get('armed','—')}",
+                f"Alt:     {tel.get('alt',0):.1f} m",
+                f"Lat:     {tel.get('lat',0):.6f}",
+                f"Lon:     {tel.get('lon',0):.6f}",
+                f"Hdg: {tel.get('heading',0)}°",
+                f"WP: {tel.get('current_mission_point','-')} / {tel.get('total_mission_points','-')}"
+            ]
 
-        y = 20
-        for line in hud_lines:
-            painter.drawText(10, y, line)
-            y += 22
+            y = 20
+            for line in hud_lines:
+                painter.drawText(10, y, line)
+                y += 22
 
-        painter.end()
+            painter.end()
 
-        self.video_label.setPixmap(QPixmap.fromImage(qimg).scaled(
-            # self.video_label.width(), self.video_label.height(),
-            self.video_label.size(),
-            Qt.KeepAspectRatio, Qt.SmoothTransformation
-        ))
+            self.video_label.setPixmap(QPixmap.fromImage(qimg).scaled(
+                # self.video_label.width(), self.video_label.height(),
+                self.video_label.size(),
+                Qt.KeepAspectRatio, Qt.SmoothTransformation
+            ))
+        except Exception as e:
+            print("HUD draw error:", e)
+            painter.end()
+            return

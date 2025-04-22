@@ -1,3 +1,4 @@
+import threading, queue, time
 from pymavlink import mavutil
 
 class Connection:
@@ -7,21 +8,95 @@ class Connection:
         # wait for heartbeat
         self.master.wait_heartbeat()
         self.telemetry = {}
-        print(f"Connected: system={self.master.target_system}, component={self.master.target_component}")
 
-    def _wait_for(self, expected_type, condition=lambda msg: True):
+        # this is where all incoming messages land:
+        self._msg_queue = queue.Queue()
+
+        # start the single reader thread
+        t = threading.Thread(target=self._message_loop, daemon=True)
+        t.start()
+        self.set_param("AUTO_OPTIONS", 3)
+        print(f"Connected: system={self.master.target_system}, component={self.master.target_component}")
+    
+    def set_param(self, param_id, value,
+                  param_type=mavutil.mavlink.MAV_PARAM_TYPE_UINT16,
+                  timeout=5):
         """
-        Block until we get a mavlink message of expected_type that
-        satisfies `condition(msg)`.  In the meantime, print any telemetry.
+        Set a vehicle parameter and wait for it to echo back.
+        Handles msg.param_id as either bytes or str.
+        Returns the new param_value.
         """
+        # send the PARAM_SET
+        self.master.mav.param_set_send(
+            self.master.target_system,
+            self.master.target_component,
+            param_id.encode('ascii'),
+            float(value),
+            param_type
+        )
+        # wait for the PARAM_VALUE ack
+        deadline = time.time() + timeout
+        while True:
+            if time.time() > deadline:
+                raise TimeoutError(f"Timed out waiting for {param_id}")
+            msg = self._wait_for('PARAM_VALUE', timeout=timeout)
+            # unify the incoming param_id
+            raw = msg.param_id
+            if isinstance(raw, (bytes, bytearray)):
+                name = raw.decode('ascii').rstrip('\x00')
+            else:
+                name = raw.rstrip('\x00')
+            if name == param_id:
+                print(f"✓ {name} set to {msg.param_value}")
+                return msg.param_value
+
+    def get_param(self, param_id, timeout=5):
+        """
+        Request a vehicle parameter and return the PARAM_VALUE message.
+        """
+        self.master.mav.param_request_read_send(
+            self.master.target_system,
+            self.master.target_component,
+            param_id.encode('ascii'),
+            -1
+        )
+        deadline = time.time() + timeout
+        while True:
+            if time.time() > deadline:
+                raise TimeoutError(f"Timed out waiting for {param_id}")
+            msg = self._wait_for('PARAM_VALUE', timeout=timeout)
+            raw = msg.param_id
+            if isinstance(raw, (bytes, bytearray)):
+                name = raw.decode('ascii').rstrip('\x00')
+            else:
+                name = raw.rstrip('\x00')
+            if name == param_id:
+                return msg
+
+    def _message_loop(self):
+        """ Continuously read from the MAVLink socket and enqueue messages. """
         while True:
             msg = self.master.recv_match(blocking=True)
             if not msg:
                 continue
+            # immediately update telemetry
+            self.update_telemetry(msg)
+            # then hand it off to anyone waiting
+            self._msg_queue.put(msg)
+
+    def _wait_for(self, expected_type, condition=lambda m: True, timeout=None):
+        """
+        Pull messages off the shared queue until you get the one you want.
+        Everything else has already updated telemetry in the reader.
+        """
+        while True:
+            try:
+                msg = self._msg_queue.get(timeout=timeout)
+            except queue.Empty:
+                raise TimeoutError(f"Timed out waiting for {expected_type}")
             if msg.get_type() == expected_type and condition(msg):
                 return msg
-            # otherwise treat it as telemetry
-            self.update_telemetry(msg)
+            # otherwise just drop it (telemetry is already updated)
 
     def _send_items(self, items, mission_type):
         count = len(items)
@@ -72,12 +147,19 @@ class Connection:
         print(f"✓ Upload of mission_type={mission_type} done.\n")
 
     def upload_mission(self, waypoints):
+        # 1) Takeoff as seq=0
         items = []
         for i, wp in enumerate(waypoints):
+            cmd = mavutil.mavlink.MAV_CMD_NAV_WAYPOINT
+            if i == 0:
+                cmd = mavutil.mavlink.MAV_CMD_NAV_TAKEOFF
+            elif i == len(waypoints) - 1:
+                cmd = mavutil.mavlink.MAV_CMD_NAV_LAND
+
             items.append({
                 'seq': i,
                 'frame': mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
-                'command': mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
+                'command': cmd,
                 'current': 0,
                 'autocontinue': 1,
                 'param1': wp.get('hold_time', 0),
@@ -205,41 +287,99 @@ class Connection:
         m = msg.get_type()
         if m == 'HEARTBEAT':
             self.telemetry['mode'] = mavutil.mode_string_v10(msg)
-            print(f"[TELEM] HEARTBEAT mode={msg.base_mode}, autopilot={msg.autopilot}")
+            armed = bool(msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
+            self.telemetry['armed'] = armed
+            # print(f"[TELEM] HEARTBEAT mode={msg.base_mode}, autopilot={msg.autopilot}")
         elif m == 'ATTITUDE':
             self.telemetry['roll'] = msg.roll
             self.telemetry['pitch'] = msg.pitch
             self.telemetry['yaw'] = msg.yaw
-            print(f"[TELEM] ATTITUDE roll={msg.roll:.2f}, pitch={msg.pitch:.2f}, yaw={msg.yaw:.2f}")
+            # print(f"[TELEM] ATTITUDE roll={msg.roll:.2f}, pitch={msg.pitch:.2f}, yaw={msg.yaw:.2f}")
         elif m == 'GLOBAL_POSITION_INT':
             self.telemetry['lat'] = msg.lat / 1e7
             self.telemetry['lon'] = msg.lon / 1e7
             self.telemetry['alt'] = msg.relative_alt / 1000.0
             self.telemetry['heading'] = msg.hdg / 100.0 if msg.hdg != 65535 else 0
             
-            print(f"[TELEM] POS   lat={self.telemetry['lat']:.6f}, lon={self.telemetry['lon']:.6f}, rel-alt={self.telemetry['alt']:.2f}m, headin={self.telemetry['heading']}")
+            # print(f"[TELEM] POS   lat={self.telemetry['lat']:.6f}, lon={self.telemetry['lon']:.6f}, rel-alt={self.telemetry['alt']:.2f}m, headin={self.telemetry['heading']}")
         elif m == 'BATTERY_STATUS':
             self.telemetry['battery_voltage'] = msg.voltages[0] / 1000.0 if msg.voltages[0] > 0 else None
             self.telemetry['battery_current'] = msg.current_battery / 100.0 if msg.current_battery > -1 else None
             self.telemetry['battery_remaining'] = msg.battery_remaining if msg.battery_remaining > -1 else None
-            print(f"[TELEM] BATT  volt={self.telemetry['battery_voltage']}V, curr={self.telemetry['battery_current']}A, left={self.telemetry['battery_remaining']}%")
+            # print(f"[TELEM] BATT  volt={self.telemetry['battery_voltage']}V, curr={self.telemetry['battery_current']}A, left={self.telemetry['battery_remaining']}%")
         elif m == 'GPS_RAW_INT':
             self.telemetry['gps_fix_type'] = msg.fix_type
             self.telemetry['gps_satellites_visible'] = msg.satellites_visible
-            print(f"[TELEM] GPS   fix={msg.fix_type}, sats={msg.satellites_visible}")
+            # print(f"[TELEM] GPS   fix={msg.fix_type}, sats={msg.satellites_visible}")
         elif m == 'MISSION_CURRENT':
             self.telemetry['current_mission_point'] = msg.seq
-            print(f'Current mission point {self.telemetry["current_mission_point"]}')
+            # print(f'Current mission point {self.telemetry["current_mission_point"]}')
 
-    def listen_for_telemetry(self):
-        try:
-            while True:
-                msg = self.master.recv_match(blocking=True, timeout=1)
-                if not msg:
-                    continue
-                self.update_telemetry(msg)
-        except Exception as e:
-            print("MAVLink listener error:", e)
+    # def listen_for_telemetry(self):
+    #     try:
+    #         while True:
+    #             msg = self.master.recv_match(blocking=True, timeout=1)
+    #             if not msg:
+    #                 continue
+    #             self.update_telemetry(msg)
+    #     except Exception as e:
+    #         print("MAVLink listener error:", e)
+
+    def arm(self):
+        """
+        Arm the vehicle (param1=1) and wait for motors to confirm armed.
+        """
+        # send arm command
+        self.master.mav.command_long_send(
+            self.master.target_system,
+            self.master.target_component,
+            mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+            0,
+            1,  # param1=1 → arm
+            0, 0, 0, 0, 0, 0
+        )
+        # block until we see the vehicle report armed
+        print("Arming…")
+        self.master.motors_armed_wait()
+        print("✓ Armed!")  # :contentReference[oaicite:0]{index=0}
+
+    def disarm(self):
+        """
+        Disarm the vehicle (param1=0) and wait for motors to confirm disarmed.
+        """
+        self.master.mav.command_long_send(
+            self.master.target_system,
+            self.master.target_component,
+            mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+            0,
+            0,  # param1=0 → disarm
+            0, 0, 0, 0, 0, 0
+        )
+        print("Disarming…")
+        self.master.motors_disarmed_wait()
+        print("✓ Disarmed!")  # :contentReference[oaicite:1]{index=1}
+
+    def set_mode(self, mode):
+        """
+        Change flight mode. Pass a string (e.g. "AUTO", "GUIDED", "STABILIZE")
+        or an integer mode ID.
+        """
+        # resolve string → mode ID
+        if isinstance(mode, str):
+            mode_map = self.master.mode_mapping()
+            if mode not in mode_map:
+                raise ValueError(f"Unknown mode '{mode}'. Available modes: {list(mode_map.keys())}")
+            mode_id = mode_map[mode]
+        else:
+            mode_id = int(mode)
+
+        print(f"Setting mode → {mode} ({mode_id})…")
+        # send the SET_MODE message
+        self.master.mav.set_mode_send(
+            self.master.target_system,
+            mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+            mode_id
+        )
 
     # def mavlink_listener(self):
     #         try:

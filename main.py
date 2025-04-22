@@ -15,13 +15,7 @@ class GCSMainWindow(QMainWindow):
         self.setGeometry(100, 100, 800, 600)
         
         # 1) Create one Connection and start its listener
-        conn = Connection()  
-        telemetry_thread = threading.Thread(
-            target=conn.listen_for_telemetry,
-            daemon=True
-        )
-        telemetry_thread.start()
-
+        conn = Connection()
         # 2) Pass the same conn into both tabs
         self.tabs = QTabWidget()
         self.mission_planning_tab = MissionPlanningTab(conn)
