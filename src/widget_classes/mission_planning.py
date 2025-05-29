@@ -2,16 +2,24 @@ import os
 import threading
 import json
 from pymavlink import mavutil
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton
-) 
-from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtCore import QUrl, pyqtSignal
+)
+from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtCore import QUrl, Signal, QTimer
+
+from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtWebEngineCore    import QWebEnginePage
+
+class DebugWebEnginePage(QWebEnginePage):
+    def javaScriptConsoleMessage(self, level, message, lineNumber, sourceID):
+        print(f"JS console [{level.name}] {sourceID}:{lineNumber} → {message}")
+        super().javaScriptConsoleMessage(level, message, lineNumber, sourceID)
 
 
 class MissionPlanningTab(QWidget):
     # signal used to marshal JS→Python callbacks back to the GUI thread
-    mission_downloaded = pyqtSignal(list, list, list)
+    mission_downloaded = Signal(list, list, list)
 
     def __init__(self, conn):
         super().__init__()
@@ -22,6 +30,7 @@ class MissionPlanningTab(QWidget):
 
         # Interactive Leaflet Map
         self.map_view = QWebEngineView()
+        self.map_view.setPage(DebugWebEnginePage(self.map_view))
         self.load_map()
 
         # Mission waypoint controls
@@ -72,51 +81,90 @@ class MissionPlanningTab(QWidget):
         main_layout.addWidget(self.buttons_widget)
         self.setLayout(main_layout)
 
+        # ─── Live drone marker updater ─────────────────────────────────────────
+        self._pos_timer = QTimer(self)
+        self._pos_timer.timeout.connect(self.update_drone_marker)
+        self._pos_timer.start(500)
+
     def load_map(self):
         map_file = os.path.abspath("map.html")
         self.map_view.setUrl(QUrl.fromLocalFile(map_file))
+
+    def update_drone_marker(self):        
+        lat = self.conn.telemetry.get('lat')
+        lon = self.conn.telemetry.get('lon')
+        if lat is not None and lon is not None:
+            js = f"updateDroneMarker({lat}, {lon});"
+            # print("Calling JS:", js)
+            self.map_view.page().runJavaScript(js)
 
     def clear_waypoints(self):
         self.map_view.page().runJavaScript("clearWaypoints();")
 
     def print_waypoints(self):
-        self.map_view.page().runJavaScript("getWaypoints();", self.handle_waypoints)
+        print("✅ Python: Requesting waypoints from JS")
+        self.map_view.page().runJavaScript("JSON.stringify(getWaypoints());", 0, self.handle_waypoints)
 
-    def handle_waypoints(self, waypoints):
-        print("Waypoints:", waypoints)
+    def handle_waypoints(self, json_str):
+        try:
+            wps = json.loads(json_str) if json_str else []
+        except json.JSONDecodeError:
+            print("⚠️ Failed to parse waypoints JSON:", json_str)
+            wps = []
+        print("✅ Python: Received waypoints from JS")
+        print("Waypoints:", wps)
+        return wps
+    
+    # def handle_waypoints(self, waypoints):
+    #     print("✅ Python: Received waypoints from JS")
+    #     print("Waypoints:", waypoints)
 
     def clear_geofence(self):
         self.map_view.page().runJavaScript("clearGeofence();")
 
     def print_geofence(self):
-        self.map_view.page().runJavaScript("getGeofence();", self.handle_geofence)
+        self.map_view.page().runJavaScript("JSON.stringify(getGeofence());", 0, self.handle_geofence)
 
     def handle_geofence(self, geofence):
+        try:
+            geofence = json.loads(geofence) if geofence else []
+        except json.JSONDecodeError:
+            print("⚠️ Failed to parse geofence JSON:", geofence)
+            geofence = []
+        print("✅ Python: Received geofence from JS")
         print("Geofence Points:", geofence)
+        return geofence
 
     def clear_rally_points(self):
         self.map_view.page().runJavaScript("clearRallyPoints();")
 
     def print_rally_points(self):
-        self.map_view.page().runJavaScript("getRallyPoints();", self.handle_rally_points)
+        self.map_view.page().runJavaScript("JSON.stringify(getRallyPoints());", 0, self.handle_rally_points)
 
     def handle_rally_points(self, rally_points):
+        try:
+            rally_points = json.loads(rally_points) if rally_points else []
+        except json.JSONDecodeError:
+            print("⚠️ Failed to parse rally points JSON:", rally_points)
+            rally_points = []
+        print("✅ Python: Received rally points from JS")
         print("Rally Points:", rally_points)
-
+        return rally_points
+    
     def _on_upload_clicked(self):
         # fetch waypoints → geofence → rally, then uplink
-        self.map_view.page().runJavaScript("getWaypoints();", self._got_waypoints)
+        self.map_view.page().runJavaScript("JSON.stringify(getWaypoints());", 0, self._got_waypoints)
 
     def _got_waypoints(self, wps):
-        self._waypoints = [{'lat':p[0], 'lon':p[1], 'alt':500} for p in wps]
-        self.map_view.page().runJavaScript("getGeofence();", self._got_fence)
+        self._waypoints = [{'lat':p[0], 'lon':p[1], 'alt':50} for p in self.handle_waypoints(wps)]
+        self.map_view.page().runJavaScript("JSON.stringify(getGeofence());", 0, self._got_fence)
 
     def _got_fence(self, fence):
-        self._fence = [{'lat':p[0], 'lon':p[1], 'alt':0} for p in fence]
-        self.map_view.page().runJavaScript("getRallyPoints();", self._got_rally)
+        self._fence = [{'lat':p[0], 'lon':p[1], 'alt':50} for p in self.handle_geofence(fence)]
+        self.map_view.page().runJavaScript("JSON.stringify(getRallyPoints());", 0, self._got_rally)
 
     def _got_rally(self, rallies):
-        self._rallies = [{'lat':p[0], 'lon':p[1], 'alt':500} for p in rallies]
+        self._rallies = [{'lat':p[0], 'lon':p[1], 'alt':50} for p in self.handle_rally_points(rallies)]
         # now push to UAV
         self.conn.upload_mission(self._waypoints)
         self.conn.upload_fence(self._fence)

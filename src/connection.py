@@ -1,5 +1,6 @@
 import threading, queue, time
 from pymavlink import mavutil
+from src.utils.connection_utils import get_waypoint_command_type
 
 class Connection:
     def __init__(self, connection_str='udp:127.0.0.1:14550'):
@@ -15,7 +16,7 @@ class Connection:
         # start the single reader thread
         t = threading.Thread(target=self._message_loop, daemon=True)
         t.start()
-        self.set_param("AUTO_OPTIONS", 3)
+        # self.set_param("AUTO_OPTIONS", 3)
         print(f"Connected: system={self.master.target_system}, component={self.master.target_component}")
     
     def set_param(self, param_id, value,
@@ -76,7 +77,7 @@ class Connection:
     def _message_loop(self):
         """ Continuously read from the MAVLink socket and enqueue messages. """
         while True:
-            msg = self.master.recv_match(blocking=True)
+            msg = self.master.recv_match(blocking=True, timeout=1)
             if not msg:
                 continue
             # immediately update telemetry
@@ -108,7 +109,7 @@ class Connection:
             count,
             mission_type
         )
-
+        l = len(items)
         # for each item wait for MISSION_REQUEST, then send it
         for i, itm in enumerate(items):
             print(f"  ● waiting for request seq={i}…")
@@ -123,7 +124,7 @@ class Connection:
                 self.master.target_component,
                 itm['seq'],
                 itm['frame'],
-                itm['command'],
+                get_waypoint_command_type(i, l), # itm['command'],
                 itm['current'],
                 itm['autocontinue'],
                 itm['param1'],
@@ -340,8 +341,6 @@ class Connection:
         )
         # block until we see the vehicle report armed
         print("Arming…")
-        self.master.motors_armed_wait()
-        print("✓ Armed!")  # :contentReference[oaicite:0]{index=0}
 
     def disarm(self):
         """
@@ -356,8 +355,24 @@ class Connection:
             0, 0, 0, 0, 0, 0
         )
         print("Disarming…")
-        self.master.motors_disarmed_wait()
-        print("✓ Disarmed!")  # :contentReference[oaicite:1]{index=1}
+
+    def takeoff(self, alt = 50):
+        lat = self.telemetry.get('lat')
+        lon = self.telemetry.get('lon')
+        if lat is None or lon is None:
+            raise RuntimeError("No GPS fix yet!")
+
+        self.master.mav.command_long_send(
+            self.master.target_system,
+            self.master.target_component,
+            mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
+            0,        # confirmation
+            0, 0, 0, 0,  # param1–4 unused (min pitch, empty, empty, yaw)
+            lat,      # param5 = latitude
+            lon,      # param6 = longitude
+            alt  # param7 = altitude
+        )
+        print(f"Takeoff command sent: alt={alt}m")
 
     def set_mode(self, mode):
         """

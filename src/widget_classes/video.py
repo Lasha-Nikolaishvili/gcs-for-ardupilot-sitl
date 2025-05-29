@@ -2,17 +2,21 @@ import sys
 import os
 import cv2, json
 import threading
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QSizePolicy
 ) 
-from PyQt5.QtCore import QTimer, Qt, QMutex
-from PyQt5.QtGui import QImage, QPixmap, QPainter, QFont, QColor
+from PySide6.QtCore import QTimer, Qt, QMutex
+from PySide6.QtGui import QImage, QPixmap, QPainter, QFont, QColor
 
 
 class VideoFeedTab(QWidget):
     def __init__(self, conn):
         super().__init__()
         self.conn = conn
+
+        # Main layout of video feed tab
+        main_layout = QHBoxLayout()
+
         self.video_label = QLabel("Waiting for video stream...")
         self.video_label.setAlignment(Qt.AlignCenter)
         self.video_label.setStyleSheet("background-color: black; color: white;")
@@ -26,6 +30,9 @@ class VideoFeedTab(QWidget):
         self.disarm_btn = QPushButton("Disarm")
         self.disarm_btn.clicked.connect(self.conn.disarm)
         
+        self.takeoff_btn = QPushButton("Takeoff")
+        self.takeoff_btn.clicked.connect(lambda: self.conn.takeoff(50))
+
         self.mode_auto_btn = QPushButton("Set Mode: AUTO")
         self.mode_auto_btn.clicked.connect(lambda: self.conn.set_mode('AUTO'))
         
@@ -34,18 +41,29 @@ class VideoFeedTab(QWidget):
         
         self.mode_stabilize_btn = QPushButton("Set Mode: STABILIZE")
         self.mode_stabilize_btn.clicked.connect(lambda: self.conn.set_mode('STABILIZE'))
+
+        self.mode_rtl_btn = QPushButton("Set Mode: RTL")
+        self.mode_rtl_btn.clicked.connect(lambda: self.conn.set_mode('RTL'))
         # self.mode_manual_btn = QPushButton("Set Mode: MANUAL")
 
-        layout = QVBoxLayout()
-        layout.addWidget(self.video_label, stretch=1)
-        layout.addWidget(self.arm_btn)
-        layout.addWidget(self.disarm_btn)
-        layout.addWidget(self.mode_auto_btn)
-        layout.addWidget(self.mode_guided_btn)
-        layout.addWidget(self.mode_stabilize_btn)
-        # layout.addWidget(self.mode_manual_btn)
-        self.setLayout(layout)
+        self.buttons_widget = QWidget()
+        buttons_layout = QVBoxLayout()
 
+        buttons_layout.addWidget(self.arm_btn)
+        buttons_layout.addWidget(self.disarm_btn)
+        buttons_layout.addWidget(self.takeoff_btn)
+        buttons_layout.addWidget(self.mode_auto_btn)
+        buttons_layout.addWidget(self.mode_guided_btn)
+        buttons_layout.addWidget(self.mode_stabilize_btn)
+        buttons_layout.addWidget(self.mode_rtl_btn)
+        # layout.addWidget(self.mode_manual_btn)
+        
+        self.buttons_widget.setLayout(buttons_layout)
+        
+        main_layout.addWidget(self.video_label, stretch=1)
+        main_layout.addWidget(self.buttons_widget)
+        self.setLayout(main_layout)
+        
         self.cap = None
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_frame)
@@ -79,6 +97,7 @@ class VideoFeedTab(QWidget):
     def update_frame(self):
         if self.cap is None:
             return
+        
         ret, frame = self.cap.read()
         if not ret:
             return

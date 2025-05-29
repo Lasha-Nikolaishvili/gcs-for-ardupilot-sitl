@@ -1,2 +1,2 @@
 # MyGCS (to be changed)
-GCS for Ardupilot. made with PyQt5 and Pymavlink.
+GCS for Ardupilot. made with PySide6 and Pymavlink.

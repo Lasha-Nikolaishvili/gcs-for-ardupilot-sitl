@@ -1,11 +1,11 @@
 import sys
 import threading
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QApplication, QMainWindow, QTabWidget
 )
 from src.widget_classes.video import VideoFeedTab
 from src.widget_classes.mission_planning import MissionPlanningTab
-from src.utils.connection import Connection
+from src.connection import Connection
 
 
 class GCSMainWindow(QMainWindow):
@@ -19,7 +19,7 @@ class GCSMainWindow(QMainWindow):
         # 2) Pass the same conn into both tabs
         self.tabs = QTabWidget()
         self.mission_planning_tab = MissionPlanningTab(conn)
-        self.video_feed_tab        = VideoFeedTab(conn)
+        self.video_feed_tab       = VideoFeedTab(conn)
 
         self.tabs.addTab(self.mission_planning_tab, "Mission Planning")
         self.tabs.addTab(self.video_feed_tab, "Video Feed")
@@ -40,4 +40,4 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = GCSMainWindow()
     window.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
