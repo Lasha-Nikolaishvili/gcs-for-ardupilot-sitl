@@ -3,22 +3,64 @@ from pymavlink import mavutil
 from src.utils.connection_utils import get_waypoint_command_type
 
 class Connection:
-    def __init__(self, connection_str='udp:127.0.0.1:14550'):
-        # open the connection
-        self.master = mavutil.mavlink_connection(connection_str)
-        # wait for heartbeat
-        self.master.wait_heartbeat()
+    def __init__(self):
         self.telemetry = {}
-
         # this is where all incoming messages land:
         self._msg_queue = queue.Queue()
-
-        # start the single reader thread
-        t = threading.Thread(target=self._message_loop, daemon=True)
-        t.start()
-        # self.set_param("AUTO_OPTIONS", 3)
-        print(f"Connected: system={self.master.target_system}, component={self.master.target_component}")
+        self.master = None
     
+    def connect_sitl(self, uri='udp:127.0.0.1:14550'):
+        """Open a MAVLink connection to SITL at `uri` and wait for heartbeat."""
+        if self.master is not None:
+            return  # already connected
+        self.master = mavutil.mavlink_connection(uri)
+        self.master.wait_heartbeat()  # block until we see the heartbeat
+        # start your background listener (fill self.telemetry, etc.)
+        self._listener_thread = threading.Thread(target=self._message_loop, daemon=True)
+        self._listener_thread.start()
+
+    def disconnect_sitl(self):
+        """Tear down the MAVLink connection cleanly."""
+        if self.master is None:
+            return
+        # Example: set a flag so that the listener thread will exit
+        self._stop_listener = True
+        if self._listener_thread is not None:
+            self._listener_thread.join(timeout=1.0)
+        try:
+            self.master.close()
+        except Exception as e:
+            print("Error closing MAVLink connection:", e)
+            pass
+        self.master = None
+        self.telemetry = {}
+
+    def _message_loop(self):
+        """ Continuously read from the MAVLink socket and enqueue messages. """
+        self._stop_listener = False
+        while not getattr(self, '_stop_listener', False):
+            msg = self.master.recv_match(blocking=True, timeout=1)
+            if not msg:
+                continue
+            # immediately update telemetry
+            self.update_telemetry(msg)
+            # then hand it off to anyone waiting
+            self._msg_queue.put(msg)
+
+    def _wait_for(self, expected_type, condition=lambda m: True, timeout=None):
+        """
+        Pull messages off the shared queue until you get the one you want.
+        Everything else has already updated telemetry in the reader.
+        """
+        while True:
+            try:
+                msg = self._msg_queue.get(timeout=timeout)
+            except queue.Empty:
+                raise TimeoutError(f"Timed out waiting for {expected_type}")
+            if msg.get_type() == expected_type and condition(msg):
+                return msg
+            # otherwise just drop it (telemetry is already updated)
+
     def set_param(self, param_id, value,
                   param_type=mavutil.mavlink.MAV_PARAM_TYPE_UINT16,
                   timeout=5):
@@ -73,31 +115,6 @@ class Connection:
                 name = raw.rstrip('\x00')
             if name == param_id:
                 return msg
-
-    def _message_loop(self):
-        """ Continuously read from the MAVLink socket and enqueue messages. """
-        while True:
-            msg = self.master.recv_match(blocking=True, timeout=1)
-            if not msg:
-                continue
-            # immediately update telemetry
-            self.update_telemetry(msg)
-            # then hand it off to anyone waiting
-            self._msg_queue.put(msg)
-
-    def _wait_for(self, expected_type, condition=lambda m: True, timeout=None):
-        """
-        Pull messages off the shared queue until you get the one you want.
-        Everything else has already updated telemetry in the reader.
-        """
-        while True:
-            try:
-                msg = self._msg_queue.get(timeout=timeout)
-            except queue.Empty:
-                raise TimeoutError(f"Timed out waiting for {expected_type}")
-            if msg.get_type() == expected_type and condition(msg):
-                return msg
-            # otherwise just drop it (telemetry is already updated)
 
     def _send_items(self, items, mission_type):
         count = len(items)
@@ -316,16 +333,6 @@ class Connection:
             self.telemetry['current_mission_point'] = msg.seq
             # print(f'Current mission point {self.telemetry["current_mission_point"]}')
 
-    # def listen_for_telemetry(self):
-    #     try:
-    #         while True:
-    #             msg = self.master.recv_match(blocking=True, timeout=1)
-    #             if not msg:
-    #                 continue
-    #             self.update_telemetry(msg)
-    #     except Exception as e:
-    #         print("MAVLink listener error:", e)
-
     def arm(self):
         """
         Arm the vehicle (param1=1) and wait for motors to confirm armed.
@@ -395,28 +402,3 @@ class Connection:
             mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
             mode_id
         )
-
-    # def mavlink_listener(self):
-    #         try:
-    #             while True:
-    #                 msg = self.mav.recv_match(blocking=True, timeout=1)
-    #                 if not msg:
-    #                     continue
-
-    #                 if msg.get_type() == 'HEARTBEAT':
-    #                     self.telemetry['mode'] = mavutil.mode_string_v10(msg)
-
-    #                 elif msg.get_type() == 'GLOBAL_POSITION_INT':
-    #                     self.telemetry['lat'] = msg.lat / 1e7
-    #                     self.telemetry['lon'] = msg.lon / 1e7
-    #                     self.telemetry['alt'] = msg.relative_alt / 1000.0
-    #                     self.telemetry['heading'] = msg.hdg / 100.0 if msg.hdg != 65535 else 0
-
-    #                 elif msg.get_type() == 'MISSION_CURRENT':
-    #                     self.telemetry['wp_seq'] = msg.seq
-
-    #                 elif msg.get_type() == 'MISSION_COUNT':
-    #                     self.telemetry['wp_total'] = msg.count
-
-    #         except Exception as e:
-    #             print("MAVLink listener error:", e)

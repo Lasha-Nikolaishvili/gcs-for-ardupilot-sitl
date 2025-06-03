@@ -3,13 +3,14 @@ import threading
 import json
 from pymavlink import mavutil
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton
+    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit, QApplication, QSizePolicy
 )
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtCore import QUrl, Signal, QTimer
 
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore    import QWebEnginePage
+
 
 class DebugWebEnginePage(QWebEnginePage):
     def javaScriptConsoleMessage(self, level, message, lineNumber, sourceID):
@@ -26,6 +27,42 @@ class MissionPlanningTab(QWidget):
         self.conn = conn
         self.mission_downloaded.connect(self._update_map_from_download)
         # Main layout of mission planning tab
+
+        # ─── Build the “Connect / Disconnect” panel ────────────────────────────
+        # (1) A label to show “Status: Disconnected” or “Status: Connected”
+        self.status_label = QLabel("Status: Disconnected")
+
+        # (2) A QLineEdit to type e.g. “udp:127.0.0.1:14550”
+        self.uri_edit = QLineEdit()
+        self.uri_edit.setPlaceholderText("e.g. udp:127.0.0.1:14550")
+        self.uri_edit.setText("udp:127.0.0.1:14550")  # default value
+
+        # (3) “Connect” button
+        self.connect_btn = QPushButton("Connect")
+        self.connect_btn.clicked.connect(self.on_connect_clicked)
+
+        # (4) “Disconnect” button
+        self.disconnect_btn = QPushButton("Disconnect")
+        self.disconnect_btn.setEnabled(False)
+        self.disconnect_btn.clicked.connect(self.on_disconnect_clicked)
+
+        connect_layout = QHBoxLayout()
+        connect_layout.addWidget(QLabel("SITL URI:"))
+        connect_layout.addWidget(self.uri_edit, 1)
+        connect_layout.addWidget(self.connect_btn)
+        connect_layout.addWidget(self.disconnect_btn)
+        connect_layout.addWidget(self.status_label)
+        connect_widget = QWidget()
+        connect_widget.setLayout(connect_layout)
+
+        connect_widget.setSizePolicy(
+            QSizePolicy.Expanding,   # stretch horizontally
+            QSizePolicy.Fixed        # fixed vertically
+        )
+        # (Optional) Lock in the “suggested” height so it never grows:
+        connect_widget.setMaximumHeight(connect_widget.sizeHint().height())
+
+
         main_layout = QHBoxLayout()
 
         # Interactive Leaflet Map
@@ -79,12 +116,53 @@ class MissionPlanningTab(QWidget):
         # Assemble layout
         main_layout.addWidget(self.map_view, 1)
         main_layout.addWidget(self.buttons_widget)
-        self.setLayout(main_layout)
+        # self.setLayout(main_layout)
+
+        # ─── Assemble everything in a single vertical layout ─────────────────
+        root_layout = QVBoxLayout(self)
+        root_layout.addWidget(connect_widget)   # top bar: connect/disconnect
+        root_layout.addLayout(main_layout)      # below: map + side buttons
+
+        self.setLayout(root_layout)
 
         # ─── Live drone marker updater ─────────────────────────────────────────
         self._pos_timer = QTimer(self)
         self._pos_timer.timeout.connect(self.update_drone_marker)
         self._pos_timer.start(500)
+    
+    # ─── “Connect” / “Disconnect” handlers ───────────────────────────────────
+
+    def on_connect_clicked(self):
+        uri = self.uri_edit.text().strip()
+        if not uri:
+            self.status_label.setText("Status: Enter a URI first")
+            return
+
+        self.status_label.setText("Status: Connecting…")
+        QApplication.processEvents()
+
+        try:
+            self.conn.connect_sitl(uri)
+        except Exception as e:
+            self.status_label.setText(f"Status: Error connecting: {e}")
+            return
+
+        # If we got here, the connection succeeded:
+        self.status_label.setText("Status: Connected")
+        self.connect_btn.setEnabled(False)
+        self.uri_edit.setEnabled(False)
+        self.disconnect_btn.setEnabled(True)
+
+    def on_disconnect_clicked(self):
+        try:
+            self.conn.disconnect_sitl()
+        except Exception as e:
+            print("Error while disconnecting:", e)
+
+        self.status_label.setText("Status: Disconnected")
+        self.connect_btn.setEnabled(True)
+        self.uri_edit.setEnabled(True)
+        self.disconnect_btn.setEnabled(False)
 
     def load_map(self):
         map_file = os.path.abspath("map.html")
