@@ -1,8 +1,5 @@
 import sys
-import threading
-from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QTabWidget
-)
+from PySide6.QtWidgets import QApplication, QMainWindow, QTabWidget
 from src.widget_classes.video import VideoFeedTab
 from src.widget_classes.mission_planning import MissionPlanningTab
 from src.connection import Connection
@@ -14,15 +11,16 @@ class GCSMainWindow(QMainWindow):
         self.setWindowTitle("GCS Application")
         self.setGeometry(100, 100, 800, 600)
         
-        # 1) Create one Connection and start its listener
+        # 1) Create one Connection (no SITL connect at init)
         conn = Connection()
-        # 2) Pass the same conn into both tabs
+        
+        # 2) Create tabs
         self.tabs = QTabWidget()
         self.mission_planning_tab = MissionPlanningTab(conn)
         self.video_feed_tab       = VideoFeedTab(conn)
 
         self.tabs.addTab(self.mission_planning_tab, "Mission Planning")
-        self.tabs.addTab(self.video_feed_tab, "Video Feed")
+        self.tabs.addTab(self.video_feed_tab,       "Video Feed")
 
         self.setCentralWidget(self.tabs)
 
@@ -31,8 +29,11 @@ class GCSMainWindow(QMainWindow):
 
     def on_tab_changed(self, index):
         if self.tabs.widget(index) is self.video_feed_tab:
-            self.video_feed_tab.start_video()
+            # Only auto‐start if the user has pressed Start Video at least once
+            if self.video_feed_tab.video_started:
+                self.video_feed_tab.start_video()
         else:
+            # Always stop when leaving the video tab
             self.video_feed_tab.stop_video()
 
 

@@ -172,7 +172,7 @@ class Connection:
             if i == 0:
                 cmd = mavutil.mavlink.MAV_CMD_NAV_TAKEOFF
             elif i == len(waypoints) - 1:
-                cmd = mavutil.mavlink.MAV_CMD_NAV_LAND
+                cmd = mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH
 
             items.append({
                 'seq': i,
