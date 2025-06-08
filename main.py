@@ -1,9 +1,10 @@
+# main.py
 import sys
 from PySide6.QtWidgets import QApplication, QMainWindow, QTabWidget
 from src.widget_classes.video import VideoFeedTab
 from src.widget_classes.mission_planning import MissionPlanningTab
+from src.widget_classes.config import ConfigTab
 from src.connection import Connection
-
 
 class GCSMainWindow(QMainWindow):
     def __init__(self):
@@ -18,9 +19,11 @@ class GCSMainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.mission_planning_tab = MissionPlanningTab(conn)
         self.video_feed_tab       = VideoFeedTab(conn)
+        self.config_tab           = ConfigTab(conn, self.mission_planning_tab)
 
         self.tabs.addTab(self.mission_planning_tab, "Mission Planning")
         self.tabs.addTab(self.video_feed_tab,       "Video Feed")
+        self.tabs.addTab(self.config_tab,           "Config")
 
         self.setCentralWidget(self.tabs)
 
@@ -29,7 +32,7 @@ class GCSMainWindow(QMainWindow):
 
     def on_tab_changed(self, index):
         if self.tabs.widget(index) is self.video_feed_tab:
-            # Only auto‐start if the user has pressed Start Video at least once
+            # Only auto-start if the user has pressed Start Video at least once
             if self.video_feed_tab.video_started:
                 self.video_feed_tab.start_video()
         else:
