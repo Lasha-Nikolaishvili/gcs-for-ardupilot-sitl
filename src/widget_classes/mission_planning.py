@@ -168,7 +168,7 @@ class MissionPlanningTab(QWidget):
         map_file = os.path.abspath("map.html")
         self.map_view.setUrl(QUrl.fromLocalFile(map_file))
 
-    def update_drone_marker(self):        
+    def update_drone_marker(self):
         lat = self.conn.telemetry.get('lat')
         lon = self.conn.telemetry.get('lon')
         if lat is not None and lon is not None:
@@ -192,10 +192,6 @@ class MissionPlanningTab(QWidget):
         print("✅ Python: Received waypoints from JS")
         print("Waypoints:", wps)
         return wps
-    
-    # def handle_waypoints(self, waypoints):
-    #     print("✅ Python: Received waypoints from JS")
-    #     print("Waypoints:", waypoints)
 
     def clear_geofence(self):
         self.map_view.page().runJavaScript("clearGeofence();")
@@ -234,15 +230,15 @@ class MissionPlanningTab(QWidget):
         self.map_view.page().runJavaScript("JSON.stringify(getWaypoints());", 0, self._got_waypoints)
 
     def _got_waypoints(self, wps):
-        self._waypoints = [{'lat':p[0], 'lon':p[1], 'alt':50} for p in self.handle_waypoints(wps)]
+        self._waypoints = [{'lat':p[0], 'lon':p[1], 'alt':p[2]} for p in self.handle_waypoints(wps)]
         self.map_view.page().runJavaScript("JSON.stringify(getGeofence());", 0, self._got_fence)
 
     def _got_fence(self, fence):
-        self._fence = [{'lat':p[0], 'lon':p[1], 'alt':50} for p in self.handle_geofence(fence)]
+        self._fence = [{'lat':p[0], 'lon':p[1]} for p in self.handle_geofence(fence)]
         self.map_view.page().runJavaScript("JSON.stringify(getRallyPoints());", 0, self._got_rally)
 
     def _got_rally(self, rallies):
-        self._rallies = [{'lat':p[0], 'lon':p[1], 'alt':50} for p in self.handle_rally_points(rallies)]
+        self._rallies = [{'lat':p[0], 'lon':p[1]} for p in self.handle_rally_points(rallies)]
         # now push to UAV
         self.conn.upload_mission(self._waypoints)
         self.conn.upload_fence(self._fence)

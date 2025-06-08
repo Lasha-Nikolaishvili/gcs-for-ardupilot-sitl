@@ -197,7 +197,7 @@ class Connection:
         for i, pt in enumerate(fence_points):
             items.append({
                 'seq': i,
-                'frame': mavutil.mavlink.MAV_FRAME_GLOBAL,
+                'frame': mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
                 # ← use the NAV_FENCE_POLYGON_VERTEX_INCLUSION command
                 'command': mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_INCLUSION,
                 'current': 0,
@@ -219,7 +219,7 @@ class Connection:
         for i, pt in enumerate(rally_points):
             items.append({
                 'seq': i,
-                'frame': mavutil.mavlink.MAV_FRAME_GLOBAL,
+                'frame': mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
                 # ← use the NAV_RALLY_POINT command
                 'command': mavutil.mavlink.MAV_CMD_NAV_RALLY_POINT,
                 'current': 0,
