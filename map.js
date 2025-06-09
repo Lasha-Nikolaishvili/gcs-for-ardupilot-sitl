@@ -80,7 +80,7 @@ window.onload = function () {
     }
 
     // ─── Waypoint functions ────────────────────────────────────────────────
-    window.addWaypoint = (lat, lng, alt = 0) => {
+    window.addWaypoint = (lat, lng, alt = 15) => {
         const idx = window.waypoints.length;
         window.waypoints.push({ lat, lng, alt });
 

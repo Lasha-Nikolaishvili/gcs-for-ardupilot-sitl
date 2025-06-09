@@ -3,10 +3,10 @@ import threading
 import json
 from pymavlink import mavutil
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit, QApplication, QSizePolicy
+    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit, QApplication, QSizePolicy, QMessageBox
 )
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtCore import QUrl, Signal, QTimer
+from PySide6.QtCore import QUrl, Signal, QTimer, Slot
 
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore    import QWebEnginePage
@@ -21,11 +21,15 @@ class DebugWebEnginePage(QWebEnginePage):
 class MissionPlanningTab(QWidget):
     # signal used to marshal JS→Python callbacks back to the GUI thread
     mission_downloaded = Signal(list, list, list)
+    # signal when mission download fails (error message)
+    mission_download_failed = Signal(str)
+
 
     def __init__(self, conn):
         super().__init__()
         self.conn = conn
         self.mission_downloaded.connect(self._update_map_from_download)
+        self.mission_download_failed.connect(self.on_download_failed)
         # Main layout of mission planning tab
 
         # ─── Build the “Connect / Disconnect” panel ────────────────────────────
@@ -61,7 +65,6 @@ class MissionPlanningTab(QWidget):
         )
         # (Optional) Lock in the “suggested” height so it never grows:
         connect_widget.setMaximumHeight(connect_widget.sizeHint().height())
-
 
         main_layout = QHBoxLayout()
 
@@ -237,33 +240,68 @@ class MissionPlanningTab(QWidget):
         self._fence = [{'lat':p[0], 'lon':p[1]} for p in self.handle_geofence(fence)]
         self.map_view.page().runJavaScript("JSON.stringify(getRallyPoints());", 0, self._got_rally)
 
-    def _got_rally(self, rallies):
-        self._rallies = [{'lat':p[0], 'lon':p[1]} for p in self.handle_rally_points(rallies)]
-        # now push to UAV
-        self.conn.upload_mission(self._waypoints)
-        self.conn.upload_fence(self._fence)
-        self.conn.upload_rally(self._rallies)
+    def _got_rally(self, rallies_json):
+        self._rallies = [{'lat':p[0], 'lon':p[1]} for p in self.handle_rally_points(rallies_json)]
+
+        # ── Now actually upload everything, with popups on success/failure ────
+        try:
+            self.conn.upload_mission(self._waypoints)
+            self.conn.upload_fence(self._fence)
+            self.conn.upload_rally(self._rallies)
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Upload Failed",
+                f"Mission upload failed:\n{e}"
+            )
+        else:
+            QMessageBox.information(
+                self,
+                "Upload Successful",
+                "Mission, geofence, and rally points were uploaded successfully!"
+            )
+            print("✅ Python: Uploaded mission, geofence, and rally points to UAV")
+            print("Waypoints:", self._waypoints)
+            print("Geofence:", self._fence)
+            print("Rally Points:", self._rallies)
 
     def _on_download_clicked(self):
-        # do download in thread to avoid blocking UI
-        threading.Thread(target=self._download_thread, daemon=True).start()
+        def worker():
+            try:
+                mts   = self.conn._download_items
+                wps   = mts(mavutil.mavlink.MAV_MISSION_TYPE_MISSION)
+                fence = mts(mavutil.mavlink.MAV_MISSION_TYPE_FENCE)
+                rally = mts(mavutil.mavlink.MAV_MISSION_TYPE_RALLY)
 
-    def _download_thread(self):
-        mts = self.conn._download_items  # shorthand
-        wps   = mts(mavutil.mavlink.MAV_MISSION_TYPE_MISSION)
-        fence = mts(mavutil.mavlink.MAV_MISSION_TYPE_FENCE)
-        rally = mts(mavutil.mavlink.MAV_MISSION_TYPE_RALLY)
+                wps   = [[i['x'], i['y'], i['z']] for i in wps]
+                fence = [[i['x'], i['y'], i['z']] for i in fence]
+                rally = [[i['x'], i['y'], i['z']] for i in rally]
 
-        # convert to simple [lat, lon, alt]
-        wps   = [[i['x'], i['y'], i['z']] for i in wps]
-        fence = [[i['x'], i['y'], i['z']] for i in fence]
-        rally = [[i['x'], i['y'], i['z']] for i in rally]
+                # set the last waypoint to match the first one (for closed loops)
+                wp_len = len(wps)
+                wps[wp_len - 1][0] = wps[0][0]
+                wps[wp_len - 1][1] = wps[0][1]
+                # update total waypoint count
+                self.conn.telemetry['total_mission_points'] = wp_len
+                # emit success
+                self.mission_downloaded.emit(wps, fence, rally)
 
-        # emit back into GUI thread
-        self.mission_downloaded.emit(wps, fence, rally)
+            except Exception as e:
+                # emit failure message
+                self.mission_download_failed.emit(str(e))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    @Slot(str)
+    def on_download_failed(self, error_msg):
+        QMessageBox.critical(self, "Download Failed", f"Mission download failed:\n{error_msg}")
 
     def _update_map_from_download(self, wps, fence, rally):
-        # assumes your map.html defines setWaypoints(), setGeofence(), setRally()
+        # update the map
         self.map_view.page().runJavaScript(f"setWaypoints({json.dumps(wps)})")
         self.map_view.page().runJavaScript(f"setGeofence({json.dumps(fence)})")
         self.map_view.page().runJavaScript(f"setRally({json.dumps(rally)})")
+
+        # then notify the user
+        QMessageBox.information(self, "Download Successful",
+                                "Mission, geofence, and rally points were downloaded and displayed.")

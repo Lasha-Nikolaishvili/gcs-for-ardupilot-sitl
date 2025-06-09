@@ -141,7 +141,7 @@ class Connection:
                 self.master.target_component,
                 itm['seq'],
                 itm['frame'],
-                get_waypoint_command_type(i, l), # itm['command'],
+                itm['command'],
                 itm['current'],
                 itm['autocontinue'],
                 itm['param1'],
@@ -165,14 +165,26 @@ class Connection:
         print(f"✓ Upload of mission_type={mission_type} done.\n")
 
     def upload_mission(self, waypoints):
-        # 1) Takeoff as seq=0
+        home_lat = self.telemetry.get('lat')
+        home_lon = self.telemetry.get('lon')
+        if home_lat is None or home_lon is None:
+            raise RuntimeError("No home position known yet!")
+        print(f"Home position: lat={home_lat:.6f}, lon={home_lon:.6f}")
+
         items = []
+        total = len(waypoints)
         for i, wp in enumerate(waypoints):
-            cmd = mavutil.mavlink.MAV_CMD_NAV_WAYPOINT
+            # choose command
             if i == 0:
                 cmd = mavutil.mavlink.MAV_CMD_NAV_TAKEOFF
-            elif i == len(waypoints) - 1:
+                lat, lon, z = wp['lat'], wp['lon'], wp['alt']
+            elif i == total - 1:
                 cmd = mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH
+                # **here** use the home coords instead of wp
+                lat, lon, z = home_lat, home_lon, wp['alt']
+            else:
+                cmd = mavutil.mavlink.MAV_CMD_NAV_WAYPOINT
+                lat, lon, z = wp['lat'], wp['lon'], wp['alt']
 
             items.append({
                 'seq': i,
@@ -184,9 +196,9 @@ class Connection:
                 'param2': wp.get('acceptance_radius', 0),
                 'param3': wp.get('pass_through', 0),
                 'param4': wp.get('yaw', 0),
-                'x': wp['lat'],
-                'y': wp['lon'],
-                'z': wp['alt']
+                'x': lat,
+                'y': lon,
+                'z': z
             })
         self._send_items(items, mavutil.mavlink.MAV_MISSION_TYPE_MISSION)
         self.telemetry['total_mission_points'] = len(waypoints)
@@ -284,23 +296,6 @@ class Connection:
             print(f"    ← got seq={seq}")
         return items
 
-    def download_and_print_all(self):
-        """
-        Download mission, fence, and rally, then print them.
-        """
-        types = [
-            (mavutil.mavlink.MAV_MISSION_TYPE_MISSION, "WAYPOINTS"),
-            (mavutil.mavlink.MAV_MISSION_TYPE_FENCE,    "FENCE VERTICES"),
-            (mavutil.mavlink.MAV_MISSION_TYPE_RALLY,    "RALLY POINTS"),
-        ]
-        for mtype, title in types:
-            items = self._download_items(mtype)
-            print(f"\n=== {title} (mission_type={mtype}) ===")
-            for itm in items:
-                print(f" seq={itm['seq']:>2} cmd={itm['command']:>4} "
-                      f"lat={itm['x']:.6f} lon={itm['y']:.6f} alt={itm['z']}")
-        print("\nDone downloading and printing all mission items.")
-
     def update_telemetry(self, msg):
         m = msg.get_type()
         if m == 'HEARTBEAT':
@@ -320,11 +315,18 @@ class Connection:
             self.telemetry['heading'] = msg.hdg / 100.0 if msg.hdg != 65535 else 0
             
             # print(f"[TELEM] POS   lat={self.telemetry['lat']:.6f}, lon={self.telemetry['lon']:.6f}, rel-alt={self.telemetry['alt']:.2f}m, headin={self.telemetry['heading']}")
+        elif m == 'VFR_HUD':
+            # ground speed (m/s), climb rate (m/s), throttle (%)
+            self.telemetry['groundspeed'] = msg.groundspeed
+            self.telemetry['climb_rate'] = msg.climb
+            self.telemetry['throttle'] = msg.throttle
+
         elif m == 'BATTERY_STATUS':
-            self.telemetry['battery_voltage'] = msg.voltages[0] / 1000.0 if msg.voltages[0] > 0 else None
-            self.telemetry['battery_current'] = msg.current_battery / 100.0 if msg.current_battery > -1 else None
+            volt = msg.voltages[0] / 1000.0 if msg.voltages and msg.voltages[0] > 0 else None
+            self.telemetry['battery_voltage'] = volt
             self.telemetry['battery_remaining'] = msg.battery_remaining if msg.battery_remaining > -1 else None
             # print(f"[TELEM] BATT  volt={self.telemetry['battery_voltage']}V, curr={self.telemetry['battery_current']}A, left={self.telemetry['battery_remaining']}%")
+        
         elif m == 'GPS_RAW_INT':
             self.telemetry['gps_fix_type'] = msg.fix_type
             self.telemetry['gps_satellites_visible'] = msg.satellites_visible
