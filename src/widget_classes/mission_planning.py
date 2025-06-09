@@ -3,10 +3,11 @@ import threading
 import json
 from pymavlink import mavutil
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit, QApplication, QSizePolicy, QMessageBox
+    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, 
+    QLineEdit, QApplication, QSizePolicy, QMessageBox, QGroupBox
 )
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtCore import QUrl, Signal, QTimer, Slot
+from PySide6.QtCore import Qt, QUrl, Signal, QTimer, Slot
 
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore    import QWebEnginePage
@@ -43,11 +44,13 @@ class MissionPlanningTab(QWidget):
 
         # (3) “Connect” button
         self.connect_btn = QPushButton("Connect")
+        self.connect_btn.setCursor(Qt.PointingHandCursor)
         self.connect_btn.clicked.connect(self.on_connect_clicked)
 
         # (4) “Disconnect” button
         self.disconnect_btn = QPushButton("Disconnect")
         self.disconnect_btn.setEnabled(False)
+        self.disconnect_btn.setCursor(Qt.PointingHandCursor)
         self.disconnect_btn.clicked.connect(self.on_disconnect_clicked)
 
         connect_layout = QHBoxLayout()
@@ -102,17 +105,21 @@ class MissionPlanningTab(QWidget):
         self.download_btn.clicked.connect(self._on_download_clicked)
 
         # Layout and widget for side buttons tab
-        self.buttons_widget = QWidget()
+        self.buttons_widget = QGroupBox("Planning Controls")
         buttons_layout = QVBoxLayout()
 
-        buttons_layout.addWidget(self.clear_mission_btn)
-        buttons_layout.addWidget(self.print_waypoints_btn)
-        buttons_layout.addWidget(self.clear_geofence_btn)
-        buttons_layout.addWidget(self.print_geofence_btn)
-        buttons_layout.addWidget(self.clear_rally_btn)
-        buttons_layout.addWidget(self.print_rally_btn)
-        buttons_layout.addWidget(self.upload_btn)
-        buttons_layout.addWidget(self.download_btn)
+        for btn in (
+            self.clear_mission_btn,
+            self.print_waypoints_btn,
+            self.clear_geofence_btn,
+            self.print_geofence_btn,
+            self.clear_rally_btn,
+            self.print_rally_btn,
+            self.upload_btn,
+            self.download_btn
+        ):
+            btn.setCursor(Qt.PointingHandCursor)
+            buttons_layout.addWidget(btn)
 
         self.buttons_widget.setLayout(buttons_layout)
         

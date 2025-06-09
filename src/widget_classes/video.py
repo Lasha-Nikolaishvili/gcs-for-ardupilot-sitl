@@ -49,6 +49,7 @@ class VideoFeedTab(QWidget):
         right_panel.addWidget(self.video_group)
         right_panel.addWidget(self.gimbal_group)
         right_panel.addStretch(1)
+        right_panel.setSpacing(30)
         main_layout.addLayout(right_panel)
 
         self.setLayout(main_layout)
@@ -88,6 +89,7 @@ class VideoFeedTab(QWidget):
         self.mode_rtl_btn.clicked.connect(lambda: self.conn.set_mode("RTL"))
 
         layout = QVBoxLayout()
+        layout.setSpacing(15)
         for btn in (
             self.arm_btn, self.disarm_btn,
             self.takeoff_btn,
@@ -97,6 +99,7 @@ class VideoFeedTab(QWidget):
             self.mode_rtl_btn
         ):
             layout.addWidget(btn)
+            btn.setCursor(Qt.PointingHandCursor)
 
         self.flight_group = QGroupBox("Flight Controls")
         self.flight_group.setLayout(layout)
@@ -106,6 +109,7 @@ class VideoFeedTab(QWidget):
         """Create a small QGroupBox containing the Start Video button."""
         self.start_button = QPushButton("Start Video")
         self.start_button.clicked.connect(self._on_start_button_clicked)
+        self.start_button.setCursor(Qt.PointingHandCursor)
 
         layout = QVBoxLayout()
         layout.addWidget(self.start_button)
@@ -141,6 +145,7 @@ class VideoFeedTab(QWidget):
         # center button
         self.center_btn = QPushButton("Center Gimbal")
         self.center_btn.clicked.connect(self._on_center_gimbal)
+        self.center_btn.setCursor(Qt.PointingHandCursor)
 
         form = QFormLayout()
         form.addRow("Roll  (RC6):",  self.roll_slider)

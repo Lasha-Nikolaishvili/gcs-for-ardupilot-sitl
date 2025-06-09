@@ -1,0 +1,133 @@
+/* palette.qss */
+
+/* Base widget defaults */
+QWidget {
+  background: #0e0f12;           /* deep dark background */
+  color: #ffffff;                /* bright white text */
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 12px;
+}
+
+QLabel {
+  font-size: 14px;
+  color: #ffffff;
+}
+
+/* Push buttons */
+QPushButton {
+  background: #0094ff;           /* primary blue */
+  color: #ffffff;                /* white text */
+  border: 2px solid #007acc;     /* slightly darker blue border */
+  border-radius: 6px;
+  padding: 6px 14px;
+  min-height: 36px;
+  font-size: 14px;
+  font-weight: 600;
+}
+QPushButton:hover {
+  background: #007acc;           /* on hover get darker */
+}
+QPushButton:pressed {
+  background: #005f99;           /* even darker on press */
+}
+/* make disabled buttons look visibly different */
+QPushButton:disabled {
+  background: #2a2d33;      /* a darker grey-blue */
+  color:     #777777;      /* muted text */
+  border:    2px solid #444444;
+}
+
+
+/* Line edits & combo boxes */
+QLineEdit, QComboBox {
+  background: #1a1d21;           /* secondary dark panel */
+  color: #ffffff;
+  border: 2px solid #0094ff;     /* primary blue border */
+  border-radius: 4px;
+  padding: 6px 8px;
+  min-height: 32px;
+  font-size: 14px;
+}
+QLineEdit:focus, QComboBox:focus {
+  border: 2px solid #005f99;     /* accent darker border */
+}
+
+/* ComboBox arrow */
+QComboBox::drop-down {
+  width: 24px;
+  subcontrol-origin: padding;
+  subcontrol-position: top right;
+  border-left: 1px solid #0094ff;
+  background: #1a1d21;
+}
+QComboBox::down-arrow {
+  image: none; /* use system default arrow */
+}
+
+/* Group boxes */
+QGroupBox {
+  background: #1a1d21;           /* secondary panel */
+  border: 2px solid #0094ff;     /* primary blue border */
+  border-radius: 6px;
+  margin-top: 14px;
+  font-weight: 600;
+}
+QGroupBox::title {
+  subcontrol-origin: margin;
+  subcontrol-position: top center;
+  padding: 0 6px;
+  color: #0094ff;                /* primary blue title */
+}
+
+/* Sliders */
+QSlider::groove:horizontal {
+  background: #1a1d21;           /* secondary groove */
+  height: 8px;
+  border-radius: 4px;
+}
+QSlider::sub-page:horizontal {
+  background: #0094ff;           /* primary fill */
+  border-radius: 4px;
+}
+QSlider::handle:horizontal {
+  background: #ffffff;           /* white handle */
+  border: 2px solid #0094ff;     /* blue outline */
+  width: 16px;
+  margin: -4px 0;
+  border-radius: 8px;
+}
+
+/* Tabs */
+QTabWidget::pane {
+  border: 2px solid #0094ff;
+  top: -1px;
+  background: #1a1d21;
+}
+QTabBar::tab {
+  background: #1a1d21;
+  color: #ffffff;
+  border: 2px solid #0094ff;
+  border-bottom-color: #0e0f12;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+  padding: 6px 12px;
+}
+QTabBar::tab:selected {
+  background: #0e0f12;
+  color: #0094ff;
+  border-color: #007acc;
+}
+
+/* Scrollbars */
+QScrollBar:vertical {
+  background: #1a1d21;
+  width: 12px;
+}
+QScrollBar::handle:vertical {
+  background: #0094ff;
+  min-height: 30px;
+  border-radius: 6px;
+}
+QScrollBar::add-line, QScrollBar::sub-line {
+  height: 0;
+}

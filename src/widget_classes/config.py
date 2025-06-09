@@ -43,11 +43,13 @@ class ConfigTab(QWidget):
         form_layout.addWidget(self.custom_url_edit, 1)
 
         self.add_btn = QPushButton("Add")
+        self.add_btn.setCursor(Qt.PointingHandCursor)
         form_layout.addWidget(self.add_btn)
         layout.addLayout(form_layout)
 
         # ─── Apply Button ────────────────────────────────────────────────────
         self.apply_map_btn = QPushButton("Apply Map Source")
+        self.apply_map_btn.setCursor(Qt.PointingHandCursor)
         layout.addWidget(self.apply_map_btn)
         layout.addSpacing(20)
 
@@ -62,12 +64,15 @@ class ConfigTab(QWidget):
 
         btn_layout = QHBoxLayout()
         self.get_btn = QPushButton("Get Param")
+        self.get_btn.setCursor(Qt.PointingHandCursor)
         self.set_btn = QPushButton("Set Param")
+        self.set_btn.setCursor(Qt.PointingHandCursor)
         btn_layout.addWidget(self.get_btn)
         btn_layout.addWidget(self.set_btn)
         layout.addLayout(btn_layout)
 
         layout.addStretch(1)
+        layout.setContentsMargins(20, 20, 20, 20)
 
         # ─── Signal connections ──────────────────────────────────────────────
         self.add_btn.clicked.connect(self.on_add_custom)
