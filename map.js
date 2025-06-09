@@ -120,32 +120,116 @@ window.onload = function () {
         arr.forEach(([lat, lng, alt]) => window.addWaypoint(lat, lng, alt));
     };
 
-    // Editor popup
+    // ─── Waypoint Editor ─────────────────────────────────────────────────────
     window.openWaypointEditor = idx => {
         const wp = window.waypoints[idx];
         const html = `
-            <div style="min-width:200px">
-              <label>Lat:<br>
-                <input id="wp-lat-${idx}" type="number"
-                  value="${wp.lat.toFixed(6)}" step="0.000001">
-              </label><br>
-              <label>Lng:<br>
-                <input id="wp-lng-${idx}" type="number"
-                  value="${wp.lng.toFixed(6)}" step="0.000001">
-              </label><br>
-              <label>Alt:<br>
-                <input id="wp-alt-${idx}" type="number"
-                  value="${wp.alt}" step="1">
-              </label><br><br>
-              <button onclick="saveWaypoint(${idx})">Save</button>
-              <button onclick="deleteWaypoint(${idx})"
-                      style="margin-left:8px;color:red">Delete</button>
+        <div style="
+            background: #1a1d21;
+            border: 2px solid #0094ff;
+            border-radius: 8px;
+            padding: 12px;
+            min-width: 220px;
+            color: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        ">
+            <h4 style="
+            margin: 0 0 8px;
+            text-align: center;
+            font-size: 16px;
+            color: #0094ff;
+            ">Edit Waypoint ${idx+1}</h4>
+            <label style="display:block; margin-bottom:6px; font-size:14px;">
+            Lat:<br>
+            <input
+                id="wp-lat-${idx}"
+                type="number" step="0.000001"
+                value="${wp.lat.toFixed(6)}"
+                style="
+                width:100%;
+                padding:4px 6px;
+                border:1px solid #0094ff;
+                border-radius:4px;
+                background: #0e0f12;
+                color: #ffffff;
+                box-sizing:border-box;
+                margin-top:2px;
+                "
+            >
+            </label>
+            <label style="display:block; margin-bottom:6px; font-size:14px;">
+            Lng:<br>
+            <input
+                id="wp-lng-${idx}"
+                type="number" step="0.000001"
+                value="${wp.lng.toFixed(6)}"
+                style="
+                width:100%;
+                padding:4px 6px;
+                border:1px solid #0094ff;
+                border-radius:4px;
+                background: #0e0f12;
+                color: #ffffff;
+                box-sizing:border-box;
+                margin-top:2px;
+                "
+            >
+            </label>
+            <label style="display:block; margin-bottom:12px; font-size:14px;">
+            Alt:<br>
+            <input
+                id="wp-alt-${idx}"
+                type="number" step="1"
+                value="${wp.alt}"
+                style="
+                width:100%;
+                padding:4px 6px;
+                border:1px solid #0094ff;
+                border-radius:4px;
+                background: #0e0f12;
+                color: #ffffff;
+                box-sizing:border-box;
+                margin-top:2px;
+                "
+            >
+            </label>
+            <div style="text-align:center; margin-top:8px;">
+            <button
+                onclick="saveWaypoint(${idx})"
+                style="
+                background: #0094ff;
+                color: #ffffff;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 12px;
+                cursor: pointer;
+                font-weight: 600;
+                "
+            >Save</button>
+            <button
+                onclick="deleteWaypoint(${idx})"
+                style="
+                background: #c0392b;
+                color: #ffffff;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 12px;
+                cursor: pointer;
+                font-weight: 600;
+                margin-left:8px;
+                "
+            >Delete</button>
             </div>
+        </div>
         `;
-        L.popup({ closeOnClick: false, autoClose: false })
-         .setLatLng(window.waypointMarkers[idx].getLatLng())
-         .setContent(html)
-         .openOn(map);
+        L.popup({
+        closeOnClick: false,
+        autoClose:    false,
+        offset:       [0, -30]
+        })
+        .setLatLng(window.waypointMarkers[idx].getLatLng())
+        .setContent(html)
+        .openOn(map);
     };
 
     window.saveWaypoint = idx => {
@@ -218,28 +302,101 @@ window.onload = function () {
         arr.forEach(([lat, lng]) => window.addGeofencePoint(lat, lng));
     };
 
+
+    // ─── Geofence Editor ───────────────────────────────────────────────────
     window.openGeofenceEditor = idx => {
         const [lat, lng] = window.geofencePoints[idx];
         const html = `
-          <div style="min-width:180px">
-            <label>Lat:<br>
-              <input id="gf-lat-${idx}" type="number"
-                value="${lat.toFixed(6)}" step="0.000001">
-            </label><br>
-            <label>Lng:<br>
-              <input id="gf-lng-${idx}" type="number"
-                value="${lng.toFixed(6)}" step="0.000001">
-            </label><br><br>
-            <button onclick="saveGeofencePoint(${idx})">Save</button>
-            <button onclick="deleteGeofencePoint(${idx})"
-                    style="margin-left:8px;color:red">Delete</button>
-          </div>
+        <div style="
+            background: #1a1d21;
+            border: 2px solid #0094ff;
+            border-radius: 8px;
+            padding: 12px;
+            min-width: 200px;
+            color: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        ">
+            <h4 style="
+            margin: 0 0 8px;
+            text-align: center;
+            font-size: 16px;
+            color: #0094ff;
+            ">Edit Geofence ${idx+1}</h4>
+            <label style="display:block; margin-bottom:6px; font-size:14px;">
+            Lat:<br>
+            <input
+                id="gf-lat-${idx}"
+                type="number" step="0.000001"
+                value="${lat.toFixed(6)}"
+                style="
+                width:100%;
+                padding:4px 6px;
+                border:1px solid #0094ff;
+                border-radius:4px;
+                background: #0e0f12;
+                color: #ffffff;
+                box-sizing:border-box;
+                margin-top:2px;
+                "
+            >
+            </label>
+            <label style="display:block; margin-bottom:12px; font-size:14px;">
+            Lng:<br>
+            <input
+                id="gf-lng-${idx}"
+                type="number" step="0.000001"
+                value="${lng.toFixed(6)}"
+                style="
+                width:100%;
+                padding:4px 6px;
+                border:1px solid #0094ff;
+                border-radius:4px;
+                background: #0e0f12;
+                color: #ffffff;
+                box-sizing:border-box;
+                margin-top:2px;
+                "
+            >
+            </label>
+            <div style="text-align:center;">
+            <button
+                onclick="saveGeofencePoint(${idx})"
+                style="
+                background: #0094ff;
+                color: #ffffff;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 12px;
+                cursor: pointer;
+                font-weight: 600;
+                "
+            >Save</button>
+            <button
+                onclick="deleteGeofencePoint(${idx})"
+                style="
+                background: #c0392b;
+                color: #ffffff;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 12px;
+                cursor: pointer;
+                font-weight: 600;
+                margin-left:8px;
+                "
+            >Delete</button>
+            </div>
+        </div>
         `;
-        L.popup({ closeOnClick: false, autoClose: false })
-         .setLatLng(window.geofenceMarkers[idx].getLatLng())
-         .setContent(html)
-         .openOn(map);
+        L.popup({
+        closeOnClick: false,
+        autoClose:    false,
+        offset:       [0, -30]
+        })
+        .setLatLng(window.geofenceMarkers[idx].getLatLng())
+        .setContent(html)
+        .openOn(map);
     };
+
 
     window.saveGeofencePoint = idx => {
         const lat = parseFloat(document.getElementById(`gf-lat-${idx}`).value);
@@ -304,27 +461,98 @@ window.onload = function () {
         arr.forEach(([lat, lng]) => window.addRallyPoint(lat, lng));
     };
 
+    // ─── Rally Editor ──────────────────────────────────────────────────────
     window.openRallyEditor = idx => {
         const [lat, lng] = window.rallyPoints[idx];
         const html = `
-          <div style="min-width:180px">
-            <label>Lat:<br>
-              <input id="ry-lat-${idx}" type="number"
-                value="${lat.toFixed(6)}" step="0.000001">
-            </label><br>
-            <label>Lng:<br>
-              <input id="ry-lng-${idx}" type="number"
-                value="${lng.toFixed(6)}" step="0.000001">
-            </label><br><br>
-            <button onclick="saveRallyPoint(${idx})">Save</button>
-            <button onclick="deleteRallyPoint(${idx})"
-                    style="margin-left:8px;color:red">Delete</button>
-          </div>
+        <div style="
+            background: #1a1d21;
+            border: 2px solid #0094ff;
+            border-radius: 8px;
+            padding: 12px;
+            min-width: 200px;
+            color: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        ">
+            <h4 style="
+            margin: 0 0 8px;
+            text-align: center;
+            font-size: 16px;
+            color: #0094ff;
+            ">Edit Rally ${idx+1}</h4>
+            <label style="display:block; margin-bottom:6px; font-size:14px;">
+            Lat:<br>
+            <input
+                id="ry-lat-${idx}"
+                type="number" step="0.000001"
+                value="${lat.toFixed(6)}"
+                style="
+                width:100%;
+                padding:4px 6px;
+                border:1px solid #0094ff;
+                border-radius:4px;
+                background: #0e0f12;
+                color: #ffffff;
+                box-sizing:border-box;
+                margin-top:2px;
+                "
+            >
+            </label>
+            <label style="display:block; margin-bottom:12px; font-size:14px;">
+            Lng:<br>
+            <input
+                id="ry-lng-${idx}"
+                type="number" step="0.000001"
+                value="${lng.toFixed(6)}"
+                style="
+                width:100%;
+                padding:4px 6px;
+                border:1px solid #0094ff;
+                border-radius:4px;
+                background: #0e0f12;
+                color: #ffffff;
+                box-sizing:border-box;
+                margin-top:2px;
+                "
+            >
+            </label>
+            <div style="text-align:center;">
+            <button
+                onclick="saveRallyPoint(${idx})"
+                style="
+                background: #0094ff;
+                color: #ffffff;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 12px;
+                cursor: pointer;
+                font-weight: 600;
+                "
+            >Save</button>
+            <button
+                onclick="deleteRallyPoint(${idx})"
+                style="
+                background: #c0392b;
+                color: #ffffff;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 12px;
+                cursor: pointer;
+                font-weight: 600;
+                margin-left:8px;
+                "
+            >Delete</button>
+            </div>
+        </div>
         `;
-        L.popup({ closeOnClick: false, autoClose: false })
-         .setLatLng(window.rallyMarkers[idx].getLatLng())
-         .setContent(html)
-         .openOn(map);
+        L.popup({
+        closeOnClick: false,
+        autoClose:    false,
+        offset:       [0, -30]
+        })
+        .setLatLng(window.rallyMarkers[idx].getLatLng())
+        .setContent(html)
+        .openOn(map);
     };
 
     window.saveRallyPoint = idx => {
