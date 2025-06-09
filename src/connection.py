@@ -115,6 +115,23 @@ class Connection:
                 name = raw.rstrip('\x00')
             if name == param_id:
                 return msg
+    
+        # ——— RC override helper —————————————————————————————————————
+    def override_rc(self, channel: int, pwm: int):
+        """
+        Override a single RC channel (1–8) to pwm (1000–2000).
+        All other channels are left untouched (0 = no override).
+        """
+        if not self.master:
+            return
+        # prepare 8 channels, override only the one we want
+        chans = [0]*8
+        chans[channel-1] = pwm
+        self.master.mav.rc_channels_override_send(
+            self.master.target_system,
+            self.master.target_component,
+            *chans
+        )
 
     def _send_items(self, items, mission_type):
         count = len(items)
